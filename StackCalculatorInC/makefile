@@ -3,3 +3,6 @@ main:
 
 clean:
 	rm main
+
+test:
+	./main < test01.txt
