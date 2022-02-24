@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #define CODE_LENGTH 1024
+#define PROGRAM_LENGTH 256
+#define STACK_SIZE 64
 
 char operators[] = {
     '+',
@@ -36,6 +39,7 @@ int lexer(char* code, token* programm, int tokenCount){
     int row = 0;
 
     while (code[chrc]){
+        assert(tokenCount < PROGRAM_LENGTH);
         switch (code[chrc]){
             case '\n':
                 col = 0;
@@ -77,7 +81,7 @@ int lexer(char* code, token* programm, int tokenCount){
             default:
                 wordBuffer[bufferIndex] = code[chrc];
                 bufferIndex++;
-                if (chrc < CODE_LENGTH - 1 && (code[chrc + 1] == ' ' || code[chrc + 1] == '\n' || code[chrc + 1] == '\t' || code[chrc + 1] == 0)){
+                if (chrc < CODE_LENGTH - 1 && (code[chrc + 1] < '0' || code[chrc + 1] > '9')){
                     wordBuffer[bufferIndex] = 0;
                     programm[tokenCount] = (token){row, col, 'n', (int)strtol(wordBuffer, NULL, 10)};
                     tokenCount++;
@@ -91,14 +95,74 @@ int lexer(char* code, token* programm, int tokenCount){
     return tokenCount;
 }
 
+int execute(int* execStack, token* programm){
+    int stackPointer = 0;
+    int done = 0;
+    int a;
+    int b;
+
+    for (int opNum = 0; opNum < PROGRAM_LENGTH && !done; opNum++){
+        token op = programm[opNum];
+        switch (op.name){
+            case 'n':
+                execStack[stackPointer] = op.value;
+                stackPointer++;
+                break;
+            assert(stackPointer >= 2);
+            case '+':
+                a = execStack[stackPointer - 2];
+                b = execStack[stackPointer - 1];
+                stackPointer--;
+                execStack[stackPointer - 1] = a + b;
+                break;
+            case '-':
+                a = execStack[stackPointer - 2];
+                b = execStack[stackPointer - 1];
+                stackPointer--;
+                execStack[stackPointer - 1] = a - b;
+                break;
+            case '*':
+                a = execStack[stackPointer - 2];
+                b = execStack[stackPointer - 1];
+                stackPointer--;
+                execStack[stackPointer - 1] = a * b;
+                break;
+            case '/':
+                a = execStack[stackPointer - 2];
+                b = execStack[stackPointer - 1];
+                stackPointer--;
+                execStack[stackPointer - 1] = a / b;
+                break;
+            case '%':
+                a = execStack[stackPointer - 2];
+                b = execStack[stackPointer - 1];
+                stackPointer--;
+                execStack[stackPointer - 1] = a % b;
+                break;
+            default:
+                done = 1;
+                break;
+        }
+    }
+
+    return stackPointer;
+}
+
 int main(){
     static char code[CODE_LENGTH];
-    static token programm[256];
+    static token programm[PROGRAM_LENGTH];
     int tokenCount = 0;
+    static int execStack[STACK_SIZE];
+    int stackPointer = 0;
 
     readInput(code);
 
     tokenCount = lexer(code, programm, tokenCount);
+
+    stackPointer = execute(execStack, programm);
+
+    assert(stackPointer > 0);
+    printf("%d\n", execStack[stackPointer - 1]);
     
     return 0;
 }
