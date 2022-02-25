@@ -14,7 +14,10 @@ char operators[] = {
     '/',
     '%',
     '(',
-    ')'
+    ')',
+    'h', // push name: 'n'
+    'l', // pull
+    '='  // print
 };
 
 typedef struct{
@@ -78,6 +81,10 @@ int lexer(char* code, token* programm, int tokenCount){
                 programm[tokenCount] = (token){row, col, ')', 0};
                 tokenCount++;
                 break;
+            case '=':
+                programm[tokenCount] = (token){row, col, '=', 0};
+                tokenCount++;
+                break;
             default:
                 wordBuffer[bufferIndex] = code[chrc];
                 bufferIndex++;
@@ -95,56 +102,87 @@ int lexer(char* code, token* programm, int tokenCount){
     return tokenCount;
 }
 
+// operations definiton
+
+void push(int n, int* execStack, int* stackPointer){
+    execStack[(*stackPointer)++] = n;
+}
+
+int pull(int* execStack, int* stackPointer){
+    return execStack[--(*stackPointer)];
+}
+
+void add(int* execStack, int* stackPointer){
+    int b = pull(execStack, stackPointer);
+    int a = pull(execStack, stackPointer);
+    push(a + b, execStack, stackPointer);
+}
+
+void sub(int* execStack, int* stackPointer){
+    int b = pull(execStack, stackPointer);
+    int a = pull(execStack, stackPointer);
+    push(a - b, execStack, stackPointer);
+}
+
+void mul(int* execStack, int* stackPointer){
+    int b = pull(execStack, stackPointer);
+    int a = pull(execStack, stackPointer);
+    push(a * b, execStack, stackPointer);
+}
+
+void dev(int* execStack, int* stackPointer){
+    int b = pull(execStack, stackPointer);
+    int a = pull(execStack, stackPointer);
+    push(a / b, execStack, stackPointer);
+}
+
+void mod(int* execStack, int* stackPointer){
+    int b = pull(execStack, stackPointer);
+    int a = pull(execStack, stackPointer);
+    push(a % b, execStack, stackPointer);
+}
+
+void print(int* execStack, int* stackPointer){
+    int a = pull(execStack, stackPointer);
+    printf("%d\n", a);
+}
+
+// execute code
+
 int execute(int* execStack, token* programm){
     int stackPointer = 0;
     int done = 0;
-    int a;
-    int b;
 
     for (int opNum = 0; opNum < PROGRAM_LENGTH && !done; opNum++){
         token op = programm[opNum];
         switch (op.name){
             case 'n':
-                execStack[stackPointer] = op.value;
-                stackPointer++;
+                push(op.value, execStack, &stackPointer);
                 break;
             assert(stackPointer >= 2);
             case '+':
-                a = execStack[stackPointer - 2];
-                b = execStack[stackPointer - 1];
-                stackPointer--;
-                execStack[stackPointer - 1] = a + b;
+                add(execStack, &stackPointer);
                 break;
             case '-':
-                a = execStack[stackPointer - 2];
-                b = execStack[stackPointer - 1];
-                stackPointer--;
-                execStack[stackPointer - 1] = a - b;
+                sub(execStack, &stackPointer);
                 break;
             case '*':
-                a = execStack[stackPointer - 2];
-                b = execStack[stackPointer - 1];
-                stackPointer--;
-                execStack[stackPointer - 1] = a * b;
+                mul(execStack, &stackPointer);
                 break;
             case '/':
-                a = execStack[stackPointer - 2];
-                b = execStack[stackPointer - 1];
-                stackPointer--;
-                execStack[stackPointer - 1] = a / b;
+                dev(execStack, &stackPointer);
                 break;
             case '%':
-                a = execStack[stackPointer - 2];
-                b = execStack[stackPointer - 1];
-                stackPointer--;
-                execStack[stackPointer - 1] = a % b;
+                mod(execStack, &stackPointer);
+                break;
+            case '=':
+                print(execStack, &stackPointer);
                 break;
             default:
                 done = 1;
                 break;
         }
     }
-
     return stackPointer;
 }
 
@@ -160,9 +198,6 @@ int main(){
     tokenCount = lexer(code, programm, tokenCount);
 
     stackPointer = execute(execStack, programm);
-
-    assert(stackPointer > 0);
-    printf("%d\n", execStack[stackPointer - 1]);
     
     return 0;
 }
