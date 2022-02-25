@@ -1,8 +1,8 @@
-main:
-	gcc -o main main.c
+main.elf: main.c
+	gcc -o main.elf main.c
 
 clean:
-	rm main
+	rm *.elf
 
 test:
-	./main < test01.txt
+	./main.elf < test01.txt
