@@ -1,3 +1,4 @@
-nop nop
-nop 420
-69 nop exit 0
+nop
+exit 33
+nop
+nop
