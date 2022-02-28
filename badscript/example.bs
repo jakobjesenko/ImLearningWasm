@@ -1,4 +1,3 @@
+nop nop
 nop
-exit 33
-nop
-nop
+exit 0
