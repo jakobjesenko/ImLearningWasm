@@ -5,23 +5,32 @@
 #include <assert.h>
 
 #define PROGRAM_LENGTH 1024
+#define MAX_VARIABLE_COUNT 128
+#define MAX_VARIABLE_NAME 64
 
-typedef enum{
-    op_exit
+typedef enum {
+    op_nop,
+    op_exit,
+    op_int,
+    op_varname,
+    op_number,
+    opCount
 } ops;
 
-int keywordCount = 3;
-int nonKwordsCount = 1;
+int keywordCount = 5;
+int nonKwordsCount = 2;
 char* keywords[] = {
     "nop",
     "exit",
-    "number" // number not keyword count lowerd by 1
+    "int",
+    "varname",
+    "number"
 };
 
 typedef struct{
     int row;
     int col;
-    int opnum;
+    ops opnum;
     int value;
 } token;
 
@@ -29,7 +38,7 @@ bool isWhiteSpace(char c){
     return c == ' ' || c == '\t' || c == '\n' ? true : false;
 }
 
-void lex(char* codeFileName, token program[]){
+void lex(char* codeFileName, token program[], char* varNames[], int* varNamesCount){
     FILE* f = fopen(codeFileName, "r");
     char c;
     char prevC;
@@ -62,12 +71,19 @@ void lex(char* codeFileName, token program[]){
         if (isWhiteSpace(c) && wordIndex){
             int line = prevC == '\n' ? row - 1 : row;
             if (wordIsNumber){
-                program[programCounter++] = (token){line, prevCol - wordIndex, keywordCount - 1, strtol(word, NULL, 10)};
+                program[programCounter++] = (token){line, prevCol - wordIndex, op_number, strtol(word, NULL, 10)};
             } else {
-                for (int i = 0; i < keywordCount - nonKwordsCount; i++){
+                bool wordIsKeyword = false;
+                for (int i = 0; i < opCount - nonKwordsCount; i++){
                     if (!strcmp(word, keywords[i])){
                         program[programCounter++] = (token){line, prevCol - wordIndex, i, 0};
+                        wordIsKeyword = true;
+                        break;
                     }
+                }
+                if (!wordIsKeyword){
+                    strcpy(varNames[*varNamesCount], word);
+                    program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, (*varNamesCount)++};
                 }
             }
             wordIndex = 0;
@@ -79,12 +95,15 @@ void lex(char* codeFileName, token program[]){
     if (wordIndex){
         int line = prevC == '\n' ? row - 1 : row;
         if (wordIsNumber){
-            program[programCounter++] = (token){line, prevCol - wordIndex, keywordCount - 1, strtol(word, NULL, 10)};
+            program[programCounter++] = (token){line, prevCol - wordIndex, op_number, strtol(word, NULL, 10)};
         } else {
-            for (int i = 0; i < keywordCount - nonKwordsCount; i++){
+            for (int i = 0; i < opCount - nonKwordsCount; i++){
                 if (!strcmp(word, keywords[i])){
                     program[programCounter++] = (token){line, prevCol - wordIndex, i, 0};
-                }
+                } else {
+                        strcpy(varNames[*varNamesCount], word);
+                        program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, (*varNamesCount)++};
+                    }
             }
         }
         wordIndex = 0;
@@ -110,25 +129,45 @@ void printAssemblyHeader(FILE* asmOutFile){
     fprintf(asmOutFile, "start:\n");
 }
 
-void printProgram(FILE* asmOutFile, token* program){
+void printProgram(FILE* asmOutFile, token* program, int* variables){
+    int variableIndex = 0;
     for (int i = 0; i < PROGRAM_LENGTH; i++){
         if (!program[i].row){
             return;
         }
         switch (program[i].opnum){
-            case 0:
-                fprintf(asmOutFile, "\tmov rax, rax\n");
+            case op_nop:
+                fprintf(asmOutFile, "\tmov rax, rax\t\t\t\t; nop\n");
                 break;
-            case 1:
-                assert(i < PROGRAM_LENGTH - 1 && program[i + 1].opnum == 2 && "exit keyword must be followed by exit code type(int)");
-                fprintf(asmOutFile, "\tmov rax, 60\n");
-                fprintf(asmOutFile, "\tmov rdi, %d\n", program[++i].value);
-                fprintf(asmOutFile, "\tsyscall\n");
+            case op_exit:
+                assert(i < PROGRAM_LENGTH - 1 && program[i + 1].opnum == op_number && "exit keyword must be followed by exit code type(int)");
+                fprintf(asmOutFile, "\tmov rax, 60\t\t\t\t; exit\n");
+                fprintf(asmOutFile, "\tmov rdi, %d\t\t\t\t; |\n", program[++i].value);
+                fprintf(asmOutFile, "\tsyscall\t\t\t\t; |\n");
+                break;
+            case op_int:
+                assert(i < PROGRAM_LENGTH - 2 && program[i + 1].opnum == op_varname && program[i + 2].opnum == op_number && "int takes 2 parameters a name and a valuue");
+                variables[variableIndex++] = program[i + 2].value;
+                i += 2;
+            case op_varname:
                 break;
             default:
+                break;
+                fprintf(stderr, "unexpected token: ln%d:col%d\t(%d)%s\t%d\n",
+                    program[i].row, program[i].col, program[i].opnum, keywords[program[i].opnum], program[i].value);
                 assert(0 && "Not recognised operation");
                 break;
         }
+    }
+}
+
+void printVariables(FILE* asmOutFile, int* variables, char* varNames[]){
+    fprintf(asmOutFile, "segment readable writable\n");
+    for (int i = 0; i < MAX_VARIABLE_COUNT; i++){
+        if (!varNames[i][0]){
+            return;
+        }
+        fprintf(asmOutFile, "var%d dq %d\t\t\t\t; %s\n", i, variables[i], varNames[i]);
     }
 }
 
@@ -136,14 +175,18 @@ typedef struct {
     bool assembly;
     bool debug;
     bool tokens;
+    bool help;
 } flagList;
 
 int main(int argc, char* argv[]){
     if (argc <= 1){
+        system("cat help.txt");
         assert(0 && "Not enough arguments");
     }
     flagList flags = {0};
-    char* codeFileName = argv[1];
+    bool inputGiven = false;
+    char* codeFileName;
+    char outputFileName[64] = " out.elf";
     for (int i = 1; i < argc; i++){
         if (argv[i][0] == '-'){
             switch (argv[i][1]){
@@ -156,27 +199,48 @@ int main(int argc, char* argv[]){
                 case 't':
                     flags.tokens = true;
                     break;
+                case 'h':
+                    flags.help = true;
+                    break;
                 default:
                     assert(0 && "Unknown option");
                     break;
             }
         } else {
-            codeFileName = argv[i];
+            if (inputGiven){
+                strcpy(outputFileName, " ");
+                strcat(outputFileName, argv[i]);
+            } else {
+                codeFileName = argv[i];
+                inputGiven = true;
+            }
         }
     }
-    static token program[PROGRAM_LENGTH];
-    
-    lex(codeFileName, program);
+    if (flags.help){
+        system("cat help.txt");
+        return 0;
+    }
 
-    char* asmOutFileName = "temp.asm";
-    FILE* asmOutFile = fopen(asmOutFileName, "w");
-    printAssemblyHeader(asmOutFile);
-    printProgram(asmOutFile, program);
-    fclose(asmOutFile);
+    static token program[PROGRAM_LENGTH];
+    static int variables[MAX_VARIABLE_COUNT];
+    static char* varNames[MAX_VARIABLE_COUNT];
+    for (int i = 0; i < MAX_VARIABLE_COUNT; i++){
+        varNames[i] = (char*)malloc(MAX_VARIABLE_NAME * sizeof(char));
+    }
+    int varNamesCount = 0;
+    
+    lex(codeFileName, program, varNames, &varNamesCount);
 
     if (flags.tokens){
         writeTokens(program);
     }
+
+    char* asmOutFileName = "temp.asm";
+    FILE* asmOutFile = fopen(asmOutFileName, "w");
+    printAssemblyHeader(asmOutFile);
+    printProgram(asmOutFile, program, variables);
+    printVariables(asmOutFile, variables, varNames);
+    fclose(asmOutFile);
 
     char command[256];
     strcpy(command, "fasm ");
@@ -186,11 +250,11 @@ int main(int argc, char* argv[]){
         strcpy(command, " out.symbol");
     }
     strcat(command, asmOutFileName);
-    strcat(command, " out.elf");
+    strcat(command, outputFileName);
     system(command);
 
-    strcpy(command, "chmod +x ");
-    strcat(command, " out.elf");
+    strcpy(command, "chmod +x");
+    strcat(command, outputFileName);
     system(command);
 
     if (!flags.assembly){
