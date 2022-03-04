@@ -1,0 +1,28 @@
+char H 72
+char e 101
+char l 108
+char o 111
+char , 44
+char space 32
+char W 87
+char r 114
+char d 100
+char ! 33
+char lf 10
+
+putc H
+putc e
+putc l
+putc l
+putc o
+putc ,
+putc space
+putc W
+putc o
+putc r
+putc l
+putc d
+putc !
+putc lf
+
+exit 0
