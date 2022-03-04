@@ -1,5 +1,0 @@
-int ime 33
-nop
-int druga 420
-nop
-exit 0

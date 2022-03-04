@@ -11,3 +11,12 @@ Badscript now officialy does nothing.
 | :-----: | :----------  |
 | nop     | does nothing |
 | exit    | exits the program by calling exit syscall with exit code |
+
+## Alpha 1.1
+
+You can now print characters to stdout.  
+| Keyword | Description  |
+| :-----: | :----------  |
+| int     | declares integer |
+| char    | declares character |
+| putc    | prints caracter from a variable |

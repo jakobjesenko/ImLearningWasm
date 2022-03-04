@@ -11,20 +11,25 @@
 typedef enum {
     op_nop,
     op_exit,
+    op_putc,
     op_int,
+    op_char,
     op_varname,
-    op_number,
+    type_number,
+    type_char,
     opCount
 } ops;
 
-int keywordCount = 5;
 int nonKwordsCount = 2;
 char* keywords[] = {
     "nop",
     "exit",
+    "putc",
     "int",
+    "char",
     "varname",
-    "number"
+    "_number__",
+    "_char__"
 };
 
 typedef struct{
@@ -33,6 +38,12 @@ typedef struct{
     ops opnum;
     int value;
 } token;
+
+typedef union {
+    int i;
+    char c;
+} var;
+
 
 bool isWhiteSpace(char c){
     return c == ' ' || c == '\t' || c == '\n' ? true : false;
@@ -71,7 +82,7 @@ void lex(char* codeFileName, token program[], char* varNames[], int* varNamesCou
         if (isWhiteSpace(c) && wordIndex){
             int line = prevC == '\n' ? row - 1 : row;
             if (wordIsNumber){
-                program[programCounter++] = (token){line, prevCol - wordIndex, op_number, strtol(word, NULL, 10)};
+                program[programCounter++] = (token){line, prevCol - wordIndex, type_number, strtol(word, NULL, 10)};
             } else {
                 bool wordIsKeyword = false;
                 for (int i = 0; i < opCount - nonKwordsCount; i++){
@@ -82,8 +93,18 @@ void lex(char* codeFileName, token program[], char* varNames[], int* varNamesCou
                     }
                 }
                 if (!wordIsKeyword){
-                    strcpy(varNames[*varNamesCount], word);
-                    program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, (*varNamesCount)++};
+                    bool nameExists = false;
+                    for (int j = 0; j < *varNamesCount; j++){
+                        if (!strcmp(varNames[j], word)){
+                            nameExists = true;
+                            program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, j};
+                            break;
+                        }
+                    }
+                    program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, *varNamesCount};
+                    if (!nameExists){
+                        strcpy(varNames[(*varNamesCount)++], word);
+                    }
                 }
             }
             wordIndex = 0;
@@ -95,15 +116,25 @@ void lex(char* codeFileName, token program[], char* varNames[], int* varNamesCou
     if (wordIndex){
         int line = prevC == '\n' ? row - 1 : row;
         if (wordIsNumber){
-            program[programCounter++] = (token){line, prevCol - wordIndex, op_number, strtol(word, NULL, 10)};
+            program[programCounter++] = (token){line, prevCol - wordIndex, type_number, strtol(word, NULL, 10)};
         } else {
             for (int i = 0; i < opCount - nonKwordsCount; i++){
                 if (!strcmp(word, keywords[i])){
                     program[programCounter++] = (token){line, prevCol - wordIndex, i, 0};
                 } else {
-                        strcpy(varNames[*varNamesCount], word);
-                        program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, (*varNamesCount)++};
+                    bool nameExists = false;
+                    for (int j = 0; j < *varNamesCount; j++){
+                        if (!strcmp(varNames[j], word)){
+                            nameExists = true;
+                            program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, j};
+                            break;
+                        }
                     }
+                    program[programCounter++] = (token){line, prevCol - wordIndex, op_varname, *varNamesCount};
+                    if (!nameExists){
+                        strcpy(varNames[(*varNamesCount)++], word);
+                    }
+                }
             }
         }
         wordIndex = 0;
@@ -129,7 +160,7 @@ void printAssemblyHeader(FILE* asmOutFile){
     fprintf(asmOutFile, "start:\n");
 }
 
-void printProgram(FILE* asmOutFile, token* program, int* variables){
+void printProgram(FILE* asmOutFile, token* program, var* variables){
     int variableIndex = 0;
     for (int i = 0; i < PROGRAM_LENGTH; i++){
         if (!program[i].row){
@@ -140,15 +171,30 @@ void printProgram(FILE* asmOutFile, token* program, int* variables){
                 fprintf(asmOutFile, "\tmov rax, rax\t\t\t\t; nop\n");
                 break;
             case op_exit:
-                assert(i < PROGRAM_LENGTH - 1 && program[i + 1].opnum == op_number && "exit keyword must be followed by exit code type(int)");
+                assert(i < PROGRAM_LENGTH - 1 && program[i + 1].opnum == type_number && "exit keyword must be followed by exit code type(int)");
                 fprintf(asmOutFile, "\tmov rax, 60\t\t\t\t; exit\n");
                 fprintf(asmOutFile, "\tmov rdi, %d\t\t\t\t; |\n", program[++i].value);
                 fprintf(asmOutFile, "\tsyscall\t\t\t\t; |\n");
                 break;
+            case op_putc:
+                assert(i < PROGRAM_LENGTH - 1 && (program[i + 1].opnum == type_number || program[i + 1].opnum == op_varname) && "putc keyword must be followed by varname type(char)");
+                fprintf(asmOutFile, "\tmov rax, 1\t\t\t\t; putc\n");
+                fprintf(asmOutFile, "\tmov rdi, 1\t\t\t\t; |\n");
+                fprintf(asmOutFile, "\tlea rsi, [var%d]\t\t\t\t; |\n", program[++i].value);
+                fprintf(asmOutFile, "\tmov rdx, 1\t\t\t\t; |\n");
+                fprintf(asmOutFile, "\tsyscall\t\t\t\t; |\n");
+                break;
             case op_int:
-                assert(i < PROGRAM_LENGTH - 2 && program[i + 1].opnum == op_varname && program[i + 2].opnum == op_number && "int takes 2 parameters a name and a valuue");
-                variables[variableIndex++] = program[i + 2].value;
+                assert(i < PROGRAM_LENGTH - 2 && program[i + 1].opnum == op_varname && program[i + 2].opnum == type_number && "int takes 2 parameters a name and a valuue");
+                variables[variableIndex++].i = program[i + 2].value;
                 i += 2;
+                break;
+            case op_char:
+                // TODO might need to be type_char
+                assert(i < PROGRAM_LENGTH - 2 && program[i + 1].opnum == op_varname && program[i + 2].opnum == type_number && "char takes 2 parameters a name and a valuue");
+                variables[variableIndex++].c = program[i + 2].value;
+                i += 2;
+                break;
             case op_varname:
                 break;
             default:
@@ -161,13 +207,16 @@ void printProgram(FILE* asmOutFile, token* program, int* variables){
     }
 }
 
-void printVariables(FILE* asmOutFile, int* variables, char* varNames[]){
+void printVariables(FILE* asmOutFile, var* variables, char* varNames[]){
     fprintf(asmOutFile, "segment readable writable\n");
     for (int i = 0; i < MAX_VARIABLE_COUNT; i++){
         if (!varNames[i][0]){
             return;
         }
-        fprintf(asmOutFile, "var%d dq %d\t\t\t\t; %s\n", i, variables[i], varNames[i]);
+        // TODO chek if we even need this
+        // if (variables[i].c)
+        // TODO END
+        fprintf(asmOutFile, "var%d dq %d\t\t\t\t; %s\n", i, variables[i].i, varNames[i]);
     }
 }
 
@@ -222,7 +271,7 @@ int main(int argc, char* argv[]){
     }
 
     static token program[PROGRAM_LENGTH];
-    static int variables[MAX_VARIABLE_COUNT];
+    static var variables[MAX_VARIABLE_COUNT];
     static char* varNames[MAX_VARIABLE_COUNT];
     for (int i = 0; i < MAX_VARIABLE_COUNT; i++){
         varNames[i] = (char*)malloc(MAX_VARIABLE_NAME * sizeof(char));

@@ -1,0 +1,9 @@
+int ime 33
+int druga 420
+char a 65
+char b 10
+nop
+putc a
+putc b
+nop
+exit 0
