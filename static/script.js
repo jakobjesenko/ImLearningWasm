@@ -1,39 +1,26 @@
+const outputField = document.querySelector("#output");
+const inputField = document.querySelector("#command-line");
 
-const memory = new WebAssembly.Memory({initial: 1});
+function makeEntry(prompt){
+    const line = document.createElement("p");
+    line.innerHTML = "> " + prompt;
+    outputField.appendChild(line);
+}
 
-const log = (offset, length) => {
-    const bytes = new Uint8Array(memory.buffer, offset, length);
-    const string = new TextDecoder("utf8").decode(bytes);
-    console.log(string);
-};
-
-const importObject = {
-    imports: {
-        log,
-        memory
+function destroyChildren(element){
+    while (element.firstChild){
+        element.removeChild(element.firstChild);
     }
-};
+}
 
-WebAssembly.instantiateStreaming(
-    fetch("/compile/hello.wasm"), importObject
-).then(obj => obj.instance.exports.hello());
-
-
-
-
-const log2 = (number) => {
-    console.log(number);
-};
-
-const importObject2 = {
-    imports: {
-        log2
+inputField.addEventListener("keydown", e => {
+    if (e.code !== "Enter"){
+        return;
     }
-};
-
-WebAssembly.instantiateStreaming(
-    fetch("/compile/add.wasm"), importObject2
-).then(obj => {
-    obj.instance.exports.run();
-    console.log(`By calling wasm function add: ${obj.instance.exports.add(33, 9)}`);
-});
+    if (inputField.value === "clear"){
+        destroyChildren(outputField);
+    } else {
+        makeEntry(inputField.value);
+    }
+    inputField.value = "";
+})
