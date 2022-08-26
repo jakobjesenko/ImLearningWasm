@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "learning web assembly",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
@@ -22,7 +23,9 @@
   },
   "homepage": "https://github.com/jakobjesenko/ImLearningWasm#readme",
   "dependencies": {
-    "express": "^4.18.1"
+    "binaryen": "^109.0.0",
+    "express": "^4.18.1",
+    "wabt": "^1.0.29"
   },
   "devDependencies": {
     "nodemon": "^2.0.19"

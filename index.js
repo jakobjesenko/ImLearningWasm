@@ -1,15 +1,29 @@
-const express = require("express");
+import express from "express";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { spawn } from "child_process";
 
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 
 app.use(express.static("static"));
 
 app.get("/", (req, res) => {
-    res.sendFile("index.html", {root: __dirname + "/static"});
+    res.sendFile("home.html", {root: __dirname + "/static"});
+});
+
+app.get("/compile/:filename.wasm", (req, res) => {
+    const filename = req.params.filename;
+    const infile = __dirname + `/static/${filename}.wat`;
+    const outfile = __dirname + `/static/${filename}.wasm`;
+    const autocompile = spawn("wat2wasm", [infile, "-o", outfile]);
+    autocompile.on("close", () => {
+        res.sendFile(outfile);
+    });
 });
 
 
-PORT = 3000;
-app.listen(PORT, () => console.log(`Listening on port: ${PORT}`));
+app.listen(3000, () => console.log(`Listening on port: ${3000}`));

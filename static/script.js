@@ -15,5 +15,25 @@ const importObject = {
 };
 
 WebAssembly.instantiateStreaming(
-    fetch("./hello.wasm"), importObject
+    fetch("/compile/hello.wasm"), importObject
 ).then(obj => obj.instance.exports.hello());
+
+
+
+
+const log2 = (number) => {
+    console.log(number);
+};
+
+const importObject2 = {
+    imports: {
+        log2
+    }
+};
+
+WebAssembly.instantiateStreaming(
+    fetch("/compile/add.wasm"), importObject2
+).then(obj => {
+    obj.instance.exports.run();
+    console.log(`By calling wasm function add: ${obj.instance.exports.add(33, 9)}`);
+});
