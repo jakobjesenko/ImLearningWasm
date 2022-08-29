@@ -1,12 +1,15 @@
 (module
-    (import "imports" "memory" (memory 1))
-    (import "imports" "log" (func $log (param i32 i32)))
+    (import "wasi" "puts" (func $puts (param i32 i32)))
+    (import "env" "mem" (memory 1))
 
     (data (i32.const 0) "Hello, World!")
 
-    (func (export "hello")
+    (func $hello
         i32.const 0
         i32.const 13
-        call $log
+        call $puts
+    )
+    (func (export "main")
+        call $hello
     )
 )

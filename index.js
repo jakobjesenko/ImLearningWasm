@@ -20,6 +20,8 @@ app.get("/compile/:filename.wasm", (req, res) => {
     const infile = __dirname + `/static/${filename}.wat`;
     const outfile = __dirname + `/static/${filename}.wasm`;
     const autocompile = spawn("wat2wasm", [infile, "-o", outfile]);
+    autocompile.stdout.pipe(process.stdout);
+    autocompile.stderr.pipe(process.stderr);
     autocompile.on("close", () => {
         res.sendFile(outfile);
     });
