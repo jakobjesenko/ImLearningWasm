@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/compile/:filename.wasm", (req, res) => {
-    const filename = req.params.filename;
+    const filename = req.params.filename.replace("->", "/");
     const infile = __dirname + `/static/${filename}.wat`;
     const outfile = __dirname + `/static/${filename}.wasm`;
     const autocompile = spawn("wat2wasm", [infile, "-o", outfile]);
